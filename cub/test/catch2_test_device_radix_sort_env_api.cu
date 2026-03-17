@@ -7,10 +7,27 @@
 #include <cub/device/device_radix_sort.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+
+#include <cuda/devices>
+#include <cuda/stream>
 
 #include <iostream>
 
 #include <c2h/catch2_test_helper.h>
+
+struct custom_key_t
+{
+  int key;
+};
+
+struct custom_decomposer_t
+{
+  __host__ __device__ ::cuda::std::tuple<int&> operator()(custom_key_t& k) const
+  {
+    return {k.key};
+  }
+};
 
 C2H_TEST("cub::DeviceRadixSort::SortPairs env-based API", "[radix_sort][env]")
 {
@@ -156,4 +173,107 @@ C2H_TEST("cub::DeviceRadixSort::SortKeysDescending DoubleBuffer env-based API", 
   REQUIRE(error == cudaSuccess);
   auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
   REQUIRE(keys == expected_keys);
+}
+
+C2H_TEST("cub::DeviceRadixSort::SortKeys decomposer+bits env-based API", "[radix_sort][env]")
+{
+  // example-begin radix-sort-keys-decomposer-bits-env
+  thrust::device_vector<custom_key_t> keys_in{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  thrust::device_vector<custom_key_t> keys_out(7);
+
+  cuda::stream stream{cuda::devices[0]};
+  auto env = cuda::std::execution::env{cuda::std::execution::prop{cuda::get_stream_t{}, cuda::stream_ref{stream}}};
+
+  auto error = cub::DeviceRadixSort::SortKeys(
+    keys_in.data().get(),
+    keys_out.data().get(),
+    static_cast<int>(keys_in.size()),
+    custom_decomposer_t{},
+    0,
+    sizeof(int) * 8,
+    env);
+
+  stream.sync();
+  // example-end radix-sort-keys-decomposer-bits-env
+
+  REQUIRE(error == cudaSuccess);
+  thrust::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+C2H_TEST("cub::DeviceRadixSort::SortKeys decomposer env-based API", "[radix_sort][env]")
+{
+  // example-begin radix-sort-keys-decomposer-env
+  thrust::device_vector<custom_key_t> keys_in{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  thrust::device_vector<custom_key_t> keys_out(7);
+
+  cuda::stream stream{cuda::devices[0]};
+  auto env = cuda::std::execution::env{cuda::std::execution::prop{cuda::get_stream_t{}, cuda::stream_ref{stream}}};
+
+  auto error = cub::DeviceRadixSort::SortKeys(
+    keys_in.data().get(), keys_out.data().get(), static_cast<int>(keys_in.size()), custom_decomposer_t{}, env);
+
+  stream.sync();
+  // example-end radix-sort-keys-decomposer-env
+
+  REQUIRE(error == cudaSuccess);
+  thrust::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+C2H_TEST("cub::DeviceRadixSort::SortKeys DB decomposer env-based API", "[radix_sort][env]")
+{
+  // example-begin radix-sort-keys-db-decomposer-env
+  thrust::device_vector<custom_key_t> keys_buf0{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  thrust::device_vector<custom_key_t> keys_buf1(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  cuda::stream stream{cuda::devices[0]};
+  auto env = cuda::std::execution::env{cuda::std::execution::prop{cuda::get_stream_t{}, cuda::stream_ref{stream}}};
+
+  auto error = cub::DeviceRadixSort::SortKeys(d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}, env);
+
+  stream.sync();
+  // example-end radix-sort-keys-db-decomposer-env
+
+  REQUIRE(error == cudaSuccess);
+  thrust::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+C2H_TEST("cub::DeviceRadixSort::SortKeys DB decomposer+bits env-based API", "[radix_sort][env]")
+{
+  // example-begin radix-sort-keys-db-decomposer-bits-env
+  thrust::device_vector<custom_key_t> keys_buf0{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  thrust::device_vector<custom_key_t> keys_buf1(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  cuda::stream stream{cuda::devices[0]};
+  auto env = cuda::std::execution::env{cuda::std::execution::prop{cuda::get_stream_t{}, cuda::stream_ref{stream}}};
+
+  auto error = cub::DeviceRadixSort::SortKeys(
+    d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}, 0, sizeof(int) * 8, env);
+
+  stream.sync();
+  // example-end radix-sort-keys-db-decomposer-bits-env
+
+  REQUIRE(error == cudaSuccess);
+  thrust::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
 }

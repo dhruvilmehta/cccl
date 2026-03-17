@@ -11,6 +11,9 @@ struct stream_registry_factory_t;
 
 #include <thrust/device_vector.h>
 
+#include <cuda/devices>
+#include <cuda/stream>
+
 #include "catch2_test_env_launch_helper.h"
 
 DECLARE_LAUNCH_WRAPPER(cub::DeviceRadixSort::SortPairs, device_radix_sort_pairs);
@@ -23,6 +26,19 @@ DECLARE_LAUNCH_WRAPPER(cub::DeviceRadixSort::SortKeysDescending, device_radix_so
 #include <c2h/catch2_test_helper.h>
 
 namespace stdexec = cuda::std::execution;
+
+struct custom_key_t
+{
+  int key;
+};
+
+struct custom_decomposer_t
+{
+  __host__ __device__ ::cuda::std::tuple<int&> operator()(custom_key_t& k) const
+  {
+    return {k.key};
+  }
+};
 
 #if TEST_LAUNCH == 0
 
@@ -100,6 +116,81 @@ TEST_CASE("Device radix sort keys descending works with default environment", "[
   c2h::device_vector<int> expected_keys{9, 8, 7, 6, 5, 3, 0};
 
   REQUIRE(keys_out == expected_keys);
+}
+
+TEST_CASE("Device radix sort keys decomposer+bits works with default environment", "[radix_sort][device]")
+{
+  auto keys_in  = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_out = c2h::device_vector<custom_key_t>(7);
+
+  REQUIRE(
+    cudaSuccess
+    == cub::DeviceRadixSort::SortKeys(
+      keys_in.data().get(),
+      keys_out.data().get(),
+      static_cast<int>(keys_in.size()),
+      custom_decomposer_t{},
+      0,
+      static_cast<int>(sizeof(int) * 8)));
+
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys decomposer works with default environment", "[radix_sort][device]")
+{
+  auto keys_in  = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_out = c2h::device_vector<custom_key_t>(7);
+
+  REQUIRE(cudaSuccess
+          == cub::DeviceRadixSort::SortKeys(
+            keys_in.data().get(), keys_out.data().get(), static_cast<int>(keys_in.size()), custom_decomposer_t{}));
+
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys DB decomposer works with default environment", "[radix_sort][device]")
+{
+  auto keys_buf0 = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_buf1 = c2h::device_vector<custom_key_t>(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  REQUIRE(
+    cudaSuccess == cub::DeviceRadixSort::SortKeys(d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}));
+
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys DB decomposer+bits works with default environment", "[radix_sort][device]")
+{
+  auto keys_buf0 = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_buf1 = c2h::device_vector<custom_key_t>(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  REQUIRE(cudaSuccess
+          == cub::DeviceRadixSort::SortKeys(
+            d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}, 0, static_cast<int>(sizeof(int) * 8)));
+
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
 }
 
 #endif
@@ -389,4 +480,101 @@ TEST_CASE("Device radix sort keys descending uses custom stream", "[radix_sort][
   c2h::device_vector<int> expected_keys{9, 8, 7, 6, 5, 3, 0};
   REQUIRE(keys_out == expected_keys);
   REQUIRE(cudaSuccess == cudaStreamDestroy(custom_stream));
+}
+
+TEST_CASE("Device radix sort keys decomposer+bits uses custom stream", "[radix_sort][device]")
+{
+  auto keys_in  = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_out = c2h::device_vector<custom_key_t>(7);
+
+  cuda::stream stream{cuda::devices[0]};
+  cuda::stream_ref stream_ref{stream};
+  auto env = stdexec::env{stream_ref};
+
+  REQUIRE(
+    cudaSuccess
+    == cub::DeviceRadixSort::SortKeys(
+      keys_in.data().get(),
+      keys_out.data().get(),
+      static_cast<int>(keys_in.size()),
+      custom_decomposer_t{},
+      0,
+      static_cast<int>(sizeof(int) * 8),
+      env));
+
+  stream.sync();
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys decomposer uses custom stream", "[radix_sort][device]")
+{
+  auto keys_in  = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_out = c2h::device_vector<custom_key_t>(7);
+
+  cuda::stream stream{cuda::devices[0]};
+  cuda::stream_ref stream_ref{stream};
+  auto env = stdexec::env{stream_ref};
+
+  REQUIRE(cudaSuccess
+          == cub::DeviceRadixSort::SortKeys(
+            keys_in.data().get(), keys_out.data().get(), static_cast<int>(keys_in.size()), custom_decomposer_t{}, env));
+
+  stream.sync();
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys_out[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys DB decomposer uses custom stream", "[radix_sort][device]")
+{
+  auto keys_buf0 = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_buf1 = c2h::device_vector<custom_key_t>(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  cuda::stream stream{cuda::devices[0]};
+  cuda::stream_ref stream_ref{stream};
+  auto env = stdexec::env{stream_ref};
+
+  REQUIRE(cudaSuccess
+          == cub::DeviceRadixSort::SortKeys(d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}, env));
+
+  stream.sync();
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
+}
+
+TEST_CASE("Device radix sort keys DB decomposer+bits uses custom stream", "[radix_sort][device]")
+{
+  auto keys_buf0 = c2h::device_vector<custom_key_t>{{8}, {6}, {7}, {5}, {3}, {0}, {9}};
+  auto keys_buf1 = c2h::device_vector<custom_key_t>(7);
+
+  cub::DoubleBuffer<custom_key_t> d_keys(keys_buf0.data().get(), keys_buf1.data().get());
+
+  cuda::stream stream{cuda::devices[0]};
+  cuda::stream_ref stream_ref{stream};
+  auto env = stdexec::env{stream_ref};
+
+  REQUIRE(
+    cudaSuccess
+    == cub::DeviceRadixSort::SortKeys(
+      d_keys, static_cast<int>(keys_buf0.size()), custom_decomposer_t{}, 0, static_cast<int>(sizeof(int) * 8), env));
+
+  stream.sync();
+  c2h::device_vector<custom_key_t> expected{{0}, {3}, {5}, {6}, {7}, {8}, {9}};
+  auto& keys = d_keys.selector == 0 ? keys_buf0 : keys_buf1;
+  for (int i = 0; i < 7; ++i)
+  {
+    REQUIRE(static_cast<custom_key_t>(keys[i]).key == static_cast<custom_key_t>(expected[i]).key);
+  }
 }
