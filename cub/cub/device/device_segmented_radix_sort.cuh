@@ -462,9 +462,6 @@ public:
   //! @tparam ValueT
   //!   **[inferred]** Value type
   //!
-  //! @tparam NumItemsT
-  //!   **[inferred]** Type of num_items
-  //!
   //! @tparam BeginOffsetIteratorT
   //!   **[inferred]** Random-access input iterator type for reading segment beginning offsets @iterator
   //!
@@ -518,18 +515,16 @@ public:
   //!   **[optional]** Execution environment. Default is ``cuda::std::execution::env{}``.
   template <typename KeyT,
             typename ValueT,
-            typename NumItemsT,
             typename BeginOffsetIteratorT,
             typename EndOffsetIteratorT,
-            typename EnvT                                                        = ::cuda::std::execution::env<>,
-            ::cuda::std::enable_if_t<::cuda::std::is_integral_v<NumItemsT>, int> = 0>
+            typename EnvT = ::cuda::std::execution::env<>>
   [[nodiscard]] CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE static cudaError_t SortPairs(
     const KeyT* d_keys_in,
     KeyT* d_keys_out,
     const ValueT* d_values_in,
     ValueT* d_values_out,
-    NumItemsT num_items,
-    NumItemsT num_segments,
+    ::cuda::std::int64_t num_items,
+    ::cuda::std::int64_t num_segments,
     BeginOffsetIteratorT d_begin_offsets,
     EndOffsetIteratorT d_end_offsets,
     int begin_bit = 0,
@@ -549,8 +544,8 @@ public:
         bytes,
         d_keys,
         d_values,
-        static_cast<::cuda::std::int64_t>(num_items),
-        static_cast<::cuda::std::int64_t>(num_segments),
+        num_items,
+        num_segments,
         d_begin_offsets,
         d_end_offsets,
         begin_bit,
@@ -962,9 +957,6 @@ public:
   //! @tparam ValueT
   //!   **[inferred]** Value type
   //!
-  //! @tparam NumItemsT
-  //!   **[inferred]** Type of num_items
-  //!
   //! @tparam BeginOffsetIteratorT
   //!   **[inferred]** Random-access input iterator type for reading segment beginning offsets @iterator
   //!
@@ -1018,18 +1010,16 @@ public:
   //!   **[optional]** Execution environment. Default is ``cuda::std::execution::env{}``.
   template <typename KeyT,
             typename ValueT,
-            typename NumItemsT,
             typename BeginOffsetIteratorT,
             typename EndOffsetIteratorT,
-            typename EnvT                                                        = ::cuda::std::execution::env<>,
-            ::cuda::std::enable_if_t<::cuda::std::is_integral_v<NumItemsT>, int> = 0>
+            typename EnvT = ::cuda::std::execution::env<>>
   [[nodiscard]] CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE static cudaError_t SortPairsDescending(
     const KeyT* d_keys_in,
     KeyT* d_keys_out,
     const ValueT* d_values_in,
     ValueT* d_values_out,
-    NumItemsT num_items,
-    NumItemsT num_segments,
+    ::cuda::std::int64_t num_items,
+    ::cuda::std::int64_t num_segments,
     BeginOffsetIteratorT d_begin_offsets,
     EndOffsetIteratorT d_end_offsets,
     int begin_bit = 0,
@@ -1049,8 +1039,8 @@ public:
         bytes,
         d_keys,
         d_values,
-        static_cast<::cuda::std::int64_t>(num_items),
-        static_cast<::cuda::std::int64_t>(num_segments),
+        num_items,
+        num_segments,
         d_begin_offsets,
         d_end_offsets,
         begin_bit,
@@ -1434,9 +1424,6 @@ public:
   //! @tparam KeyT
   //!   **[inferred]** Key type
   //!
-  //! @tparam NumItemsT
-  //!   **[inferred]** Type of num_items
-  //!
   //! @tparam BeginOffsetIteratorT
   //!   **[inferred]** Random-access input iterator type for reading segment beginning offsets @iterator
   //!
@@ -1483,16 +1470,14 @@ public:
   //! @param[in] env
   //!   **[optional]** Execution environment. Default is ``cuda::std::execution::env{}``.
   template <typename KeyT,
-            typename NumItemsT,
             typename BeginOffsetIteratorT,
             typename EndOffsetIteratorT,
-            typename EnvT                                                        = ::cuda::std::execution::env<>,
-            ::cuda::std::enable_if_t<::cuda::std::is_integral_v<NumItemsT>, int> = 0>
+            typename EnvT = ::cuda::std::execution::env<>>
   [[nodiscard]] CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE static cudaError_t SortKeys(
     const KeyT* d_keys_in,
     KeyT* d_keys_out,
-    NumItemsT num_items,
-    NumItemsT num_segments,
+    ::cuda::std::int64_t num_items,
+    ::cuda::std::int64_t num_segments,
     BeginOffsetIteratorT d_begin_offsets,
     EndOffsetIteratorT d_end_offsets,
     int begin_bit = 0,
@@ -1512,8 +1497,8 @@ public:
         bytes,
         d_keys,
         d_values,
-        static_cast<::cuda::std::int64_t>(num_items),
-        static_cast<::cuda::std::int64_t>(num_segments),
+        num_items,
+        num_segments,
         d_begin_offsets,
         d_end_offsets,
         begin_bit,
@@ -1891,9 +1876,6 @@ public:
   //! @tparam KeyT
   //!   **[inferred]** Key type
   //!
-  //! @tparam NumItemsT
-  //!   **[inferred]** Type of num_items
-  //!
   //! @tparam BeginOffsetIteratorT
   //!   **[inferred]** Random-access input iterator type for reading segment beginning offsets @iterator
   //!
@@ -1940,16 +1922,14 @@ public:
   //! @param[in] env
   //!   **[optional]** Execution environment. Default is ``cuda::std::execution::env{}``.
   template <typename KeyT,
-            typename NumItemsT,
             typename BeginOffsetIteratorT,
             typename EndOffsetIteratorT,
-            typename EnvT                                                        = ::cuda::std::execution::env<>,
-            ::cuda::std::enable_if_t<::cuda::std::is_integral_v<NumItemsT>, int> = 0>
+            typename EnvT = ::cuda::std::execution::env<>>
   [[nodiscard]] CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE static cudaError_t SortKeysDescending(
     const KeyT* d_keys_in,
     KeyT* d_keys_out,
-    NumItemsT num_items,
-    NumItemsT num_segments,
+    ::cuda::std::int64_t num_items,
+    ::cuda::std::int64_t num_segments,
     BeginOffsetIteratorT d_begin_offsets,
     EndOffsetIteratorT d_end_offsets,
     int begin_bit = 0,
@@ -1969,8 +1949,8 @@ public:
         bytes,
         d_keys,
         d_values,
-        static_cast<::cuda::std::int64_t>(num_items),
-        static_cast<::cuda::std::int64_t>(num_segments),
+        num_items,
+        num_segments,
         d_begin_offsets,
         d_end_offsets,
         begin_bit,
